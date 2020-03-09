@@ -14,9 +14,14 @@
 
 #define OUT0 P2_0
 #define OUT1 P2_1
+//#define LEDG P1_3
+//#define LEDR P1_1
 
 volatile unsigned char pwm_count=0;
-
+volatile unsigned int direction=0; // 0 for ccw, 1 for cw
+	//OUT1 turns cw, OUT0 turns ccw
+volatile unsigned int speed=0;     // 0 for off and 100 for max
+volatile unsigned char buff[17];
 char _c51_external_startup (void)
 {
 	// Disable Watchdog with key sequence
@@ -101,24 +106,98 @@ void Timer2_ISR (void) interrupt 5
 	TF2H = 0; // Clear Timer2 interrupt flag
 	
 	pwm_count++;
-	if(pwm_count>100) pwm_count=0;
+	if(pwm_count>100) 
+	pwm_count=0;
 	
-	OUT0=pwm_count>50?0:1;
-	OUT1=pwm_count>75?0:1;
+	if(direction < 1)
+	{
+		OUT0=pwm_count>speed?0:1;
+		OUT1=pwm_count>0?0:1;
+	} 
+	else
+	{
+		OUT0=pwm_count>0?0:1;
+		OUT1=pwm_count>speed?0:1;
+	}
+    
+
 }
 
+int getsn (char * buff, int len)
+{
+	int j;
+	char c;
+	
+	for(j=0; j<(len-1); j++)
+	{
+		c=getchar();
+		if ( (c=='\n') || (c=='\r') )
+		{
+			buff[j]=0;
+			return j;
+		}
+		else
+		{
+			buff[j]=c;
+		}
+	}
+	buff[j]=0;
+	return len;
+}
 
+void Set_Pin_Input (unsigned char pin)
+{
+	unsigned char mask;
+	
+	mask=(1<<(pin&0x7));
+	mask=~mask;
+	switch(pin/0x10)
+	{
+		case 0: P0MDOUT &= mask; break;
+		case 1: P1MDOUT &= mask; break;
+		case 2: P2MDOUT &= mask; break; 
+		case 3: P3MDOUT &= mask; break; 
+	}	
+}
 
 void main (void)
-{    
-    int direction=0; // 0 for ccw, 1 for cw
-	int speed=0;     // 0 for off and 100 for max
+{   
+    
+    direction = 0;
+	speed=50;
+    Set_Pin_Input(0x33);
+	Set_Pin_Input(0x30);
+    
+    //P3_3=0;
+	//P3_0=0;
+
 	printf("\x1b[2J"); // Clear screen using ANSI escape sequence.
 	printf("Square wave generator for the EFM8LB1.\r\n"
 	       "Check pins P2.0 and P2.1 with the oscilloscope.\r\n");
-
+    
 	while(1)
 	{
 		
+	printf("Enter the speed from 0 to 100:\n");
+    getsn(buff,sizeof(buff));
+	speed= atoi(buff);
+	printf("Enter the direction, 0 for ccw, something else for cw:\n");
+	getsn(buff,sizeof(buff));
+	direction= atoi(buff);
+	printf("\n%d\n",speed);
+	if(direction==0)
+	{
+		P3_0=0;
+		P3_3=1;
 	}
+	
+	else
+	{
+	   P3_3=0;
+	   P3_0=1;
+	} 
+	
+	}
+
+		
 }
